@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Navigator | Hybrid Edition</title>
+    <title>Navigator | Hybrid QR Edition</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --paper: #fdfaf0; --ink: #2c3e50; --accent: #2980b9; --green: #27ae60; --red: #e74c3c; --orange: #e67e22; --gray: #95a5a6; }
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: #222; overflow: hidden; }
 
         /* --- OVERLAYS --- */
-        #lock-screen, #mode-selection {
+        #lock-screen, #mode-selection, #qr-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--ink); z-index: 10000; display: flex; align-items: center; justify-content: center; color: white;
+            background: rgba(44, 62, 80, 0.95); z-index: 10000; display: flex; align-items: center; justify-content: center; color: white;
         }
-        #mode-selection { background: #1a252f; z-index: 9999; display: none; }
+        #mode-selection, #qr-overlay { display: none; }
         
         .box { background: #34495e; padding: 30px; border-radius: 15px; text-align: center; width: 85%; max-width: 400px; box-shadow: 0 10px 50px rgba(0,0,0,0.5); }
-        .box h2 { margin-top: 0; }
-        .box input { width: 100%; padding: 15px; font-size: 18px; text-align: center; border-radius: 8px; border: none; margin: 15px 0; box-sizing: border-box;}
+        .box input { width: 100%; padding: 12px; font-size: 16px; text-align: center; border-radius: 8px; border: none; margin: 15px 0; box-sizing: border-box;}
         
         .mode-btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
         .mode-btn { background: var(--accent); padding: 20px; border-radius: 10px; cursor: pointer; transition: 0.3s; }
-        .mode-btn:hover { background: var(--green); transform: translateY(-5px); }
-        .mode-btn i { font-size: 30px; display: block; margin-bottom: 10px; }
+        
+        #qr-code-container { background: white; padding: 15px; border-radius: 10px; display: inline-block; margin: 15px 0; }
+        #qr-code-container img { display: block; width: 200px; height: 200px; }
 
-        /* --- BASIC LAYOUT --- */
+        /* --- LAYOUT --- */
         #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1; background: #333; }
         #sidebar { 
             position: absolute; background: white; padding: 15px; border-radius: 12px; 
@@ -33,31 +33,26 @@
             display: flex; flex-direction: column; transition: all 0.4s ease;
         }
 
-        /* --- DESKTOP MODE --- */
-        body.mode-desktop #sidebar {
-            top: 20px; left: 20px; bottom: 20px; width: 360px;
-        }
-
-        /* --- MOBILE MODE --- */
-        body.mode-mobile #sidebar {
-            top: auto; left: 10px; right: 10px; bottom: 10px; height: 50%;
-            width: auto; border-radius: 15px 15px 12px 12px;
-        }
+        body.mode-desktop #sidebar { top: 20px; left: 20px; bottom: 20px; width: 360px; }
+        body.mode-mobile #sidebar { top: auto; left: 10px; right: 10px; bottom: 10px; height: 50%; width: auto; border-radius: 15px 15px 12px 12px; }
         body.mode-mobile .history-section { display: none; }
 
-        /* --- UI ELEMENTS --- */
         .input-section { flex-grow: 1; overflow-y: auto; }
         input, textarea, button, select { width: 100%; padding: 10px; margin-top: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; box-sizing: border-box; }
         button { background: var(--accent); color: white; border: none; font-weight: bold; cursor: pointer; }
         .btn-save { background: var(--green); height: 45px; }
-        .project-tools { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+        
+        /* Projekt-Grid Layout */
+        .project-tools { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 5px; }
+        .btn-tool { font-size: 10px; padding: 8px 2px; }
+
         .dist-badge { background: var(--ink); color: white; padding: 6px; border-radius: 4px; font-size: 12px; font-weight: bold; text-align: center; }
         .preview-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 8px; }
         .preview-item { position: relative; aspect-ratio: 1; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; }
         .preview-item img { width: 100%; height: 100%; object-fit: cover; }
         .chronik-item { background: #f4f4f4; padding: 10px; margin-top: 8px; border-radius: 5px; border-left: 4px solid var(--accent); font-size: 12px; }
 
-        @media print { #sidebar, #lock-screen, #mode-selection { display: none !important; } }
+        @media print { #sidebar, #lock-screen, #mode-selection, #qr-overlay { display: none !important; } }
     </style>
 </head>
 <body>
@@ -73,24 +68,30 @@
 <div id="mode-selection">
     <div class="box">
         <h2>📱 Modus wählen</h2>
-        <p>Wie möchtest du das Tool nutzen?</p>
         <div class="mode-btn-grid">
-            <div class="mode-btn" onclick="setMode('desktop')">
-                <span>💻</span><br>Desktop
-            </div>
-            <div class="mode-btn" onclick="setMode('mobile')">
-                <span>📱</span><br>Mobil
-            </div>
+            <div class="mode-btn" onclick="setMode('desktop')">💻<br>Desktop</div>
+            <div class="mode-btn" onclick="setMode('mobile')">📱<br>Mobil</div>
         </div>
+    </div>
+</div>
+
+<div id="qr-overlay" onclick="this.style.display='none'">
+    <div class="box" onclick="event.stopPropagation()">
+        <h2>🔗 App teilen</h2>
+        <p style="font-size: 12px;">Scanne diesen Code mit dem Handy:</p>
+        <div id="qr-code-container"></div>
+        <input type="text" id="share-url-text" readonly onclick="this.select()">
+        <button onclick="document.getElementById('qr-overlay').style.display='none'">Schließen</button>
     </div>
 </div>
 
 <div id="sidebar">
     <div class="input-section">
         <div class="project-tools">
-            <button onclick="newProject()" style="background:var(--red); font-size:11px">✨ Neu</button>
-            <button onclick="exportProject()" style="background:var(--orange); font-size:11px">💾 Exp</button>
-            <button onclick="document.getElementById('importFile').click()" style="background:var(--ink); font-size:11px">📂 Imp</button>
+            <button onclick="newProject()" class="btn-tool" style="background:var(--red)">✨ Neu</button>
+            <button onclick="exportProject()" class="btn-tool" style="background:var(--orange)">💾 Exp</button>
+            <button onclick="document.getElementById('importFile').click()" class="btn-tool" style="background:var(--ink)">📂 Imp</button>
+            <button onclick="showQR()" class="btn-tool" style="background:var(--accent)">📱 QR</button>
             <input type="file" id="importFile" style="display:none" accept=".json" onchange="importProject(this)">
         </div>
         
@@ -102,20 +103,21 @@
         </select>
         <div id="distDisplay" class="dist-badge">Wegpunkte setzen...</div>
         <input type="date" id="tDate">
-        <input type="text" id="routeName" placeholder="Etappe (z.B. Tag 1)">
-        <textarea id="diary" style="height: 50px;" placeholder="Was ist passiert?"></textarea>
+        <input type="text" id="routeName" placeholder="Etappe">
+        <textarea id="diary" style="height: 50px;" placeholder="Notizen..."></textarea>
         
-        <button onclick="document.getElementById('imgIn').click()" style="background:#7f8c8d; margin-top:10px;">📷 Bilder hinzufügen</button>
+        <button onclick="document.getElementById('imgIn').click()" style="background:#7f8c8d; margin-top:10px;">📷 Bilder wählen</button>
         <input type="file" id="imgIn" style="display:none" multiple accept="image/*" onchange="processImages(this.files)">
         
         <div id="preview-grid" class="preview-grid"></div>
         
         <button id="saveBtn" class="btn-save" onclick="saveEntry()" disabled style="margin-top:15px">📌 Etappe speichern</button>
         <button onclick="prepareNext()" style="background:#34495e; margin-top:8px;">⏭️ Nächste Etappe</button>
-        <button onclick="handleExport()" style="background:#2c3e50; margin-top:8px;">📖 PDF Reisebericht</button>
+        <button onclick="handleExport()" style="background:#2c3e50; margin-top:8px;">📖 PDF Export</button>
         
         <div class="history-section" id="chronik-list"></div>
     </div>
+    <div style="font-size: 9px; text-align: center; color: #95a5a6; margin-top: 5px;">v2026.23 | &copy; Navigator Pro</div>
 </div>
 
 <div id="map"></div>
@@ -128,7 +130,6 @@
     const APP_KEY = "1234";
     let map, markers = [], routeLine, currentImages = [], db, currentDistKM = 0, currentDistNM = 0;
 
-    // --- INITIALISIERUNG & MODUS ---
     function unlockApp() {
         if(document.getElementById('appKeyInput').value === APP_KEY) {
             document.getElementById('lock-screen').style.display = 'none';
@@ -142,22 +143,24 @@
         initMap();
     }
 
+    function showQR() {
+        const url = window.location.href;
+        document.getElementById('share-url-text').value = url;
+        const qrContainer = document.getElementById('qr-code-container');
+        qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}" alt="QR Code">`;
+        document.getElementById('qr-overlay').style.display = 'flex';
+    }
+
     function initMap() {
         map = L.map('map', { zoomControl: true }).setView([50.11, 8.68], 6);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { crossOrigin: 'anonymous' }).addTo(map);
-
-        // PC Rechtsklick
         map.on('contextmenu', e => addMarker(e.latlng)); 
-        
-        // Mobile Long-Press (Gedrückt halten)
         let pressTimer;
-        map.on('mousedown touchstart', e => {
-            pressTimer = window.setTimeout(() => { if(e.latlng) addMarker(e.latlng); }, 800);
-        });
+        map.on('mousedown touchstart', e => { pressTimer = window.setTimeout(() => { if(e.latlng) addMarker(e.latlng); }, 800); });
         map.on('mouseup touchend mousemove touchmove', () => clearTimeout(pressTimer));
+        document.getElementById('tDate').valueAsDate = new Date();
     }
 
-    // --- DATENBANK ---
     const request = indexedDB.open("TravelLogDB_v11", 1);
     request.onsuccess = e => { db = e.target.result; renderHistoryList(); };
     request.onupgradeneeded = e => {
@@ -165,37 +168,26 @@
         db.createObjectStore("entries", { keyPath: "id", autoIncrement: true });
     };
 
-    // --- LOGIK ---
     function addMarker(latlng) {
         const m = L.marker(latlng, { draggable: true }).addTo(map);
         m.on('dragend', () => updateRoute(false));
-        m.on('click contextmenu', e => {
-            if(e.type === 'contextmenu' || e.originalEvent.ctrlKey) {
-                map.removeLayer(m);
-                markers = markers.filter(x => x !== m);
-                updateRoute(false);
-            }
-        });
-        markers.push(m);
-        updateRoute(false);
+        m.on('click contextmenu', e => { if(e.type === 'contextmenu' || e.originalEvent.ctrlKey) { map.removeLayer(m); markers = markers.filter(x => x !== m); updateRoute(false); } });
+        markers.push(m); updateRoute(false);
     }
 
     async function updateRoute(autoZoom = false) {
         if (routeLine) map.removeLayer(routeLine);
         if (markers.length < 2) { document.getElementById('saveBtn').disabled = true; return; }
-        
         const coords = markers.map(m => m.getLatLng());
         const mode = document.getElementById('travelMode').value;
-
         if (mode === "pkw") {
             const query = coords.map(c => `${c.lng},${c.lat}`).join(';');
             try {
-                const response = await fetch(`https://router.project-osrm.org/route/v1/driving/${query}?geometries=geojson&overview=full`);
-                const data = await response.json();
-                const routeCoords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                routeLine = L.polyline(routeCoords, { color: '#e67e22', weight: 5 }).addTo(map);
+                const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${query}?geometries=geojson`);
+                const data = await res.json();
+                routeLine = L.polyline(data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]), { color: '#e67e22', weight: 5 }).addTo(map);
                 currentDistKM = (data.routes[0].distance / 1000).toFixed(2);
-                document.getElementById('distDisplay').innerText = `PKW: ${currentDistKM} km`;
+                document.getElementById('distDisplay').innerText = `${currentDistKM} km`;
             } catch (err) { drawDirect(coords, mode); }
         } else { drawDirect(coords, mode); }
         document.getElementById('saveBtn').disabled = false;
@@ -203,10 +195,8 @@
     }
 
     function drawDirect(coords, mode) {
-        let meters = 0;
-        for (let i=0; i<coords.length-1; i++) meters += L.latLng(coords[i]).distanceTo(L.latLng(coords[i+1]));
-        currentDistKM = (meters/1000).toFixed(2);
-        currentDistNM = (meters/1852).toFixed(2);
+        let mtrs = 0; for (let i=0; i<coords.length-1; i++) mtrs += L.latLng(coords[i]).distanceTo(L.latLng(coords[i+1]));
+        currentDistKM = (mtrs/1000).toFixed(2); currentDistNM = (mtrs/1852).toFixed(2);
         const plane = mode === "flugzeug";
         routeLine = L.polyline(coords, { color: plane ? '#9b59b6' : '#2980b9', weight: 4, dashArray: plane ? "10,15" : "" }).addTo(map);
         document.getElementById('distDisplay').innerText = mode === "schiff" ? `${currentDistNM} nm` : `${currentDistKM} km`;
@@ -223,36 +213,25 @@
                     if (w > h && w > max) { h *= max/w; w = max; } else if (h > max) { w *= max/h; h = max; }
                     canvas.width = w; canvas.height = h;
                     canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                    currentImages.push(canvas.toDataURL('image/jpeg', 0.6));
-                    renderPreviews();
-                };
-                img.src = e.target.result;
-            };
-            r.readAsDataURL(file);
+                    currentImages.push(canvas.toDataURL('image/jpeg', 0.6)); renderPreviews();
+                }; img.src = e.target.result;
+            }; r.readAsDataURL(file);
         });
     }
 
-    function renderPreviews() {
-        document.getElementById('preview-grid').innerHTML = currentImages.map(src => `<div class="preview-item"><img src="${src}"></div>`).join('');
-    }
+    function renderPreviews() { document.getElementById('preview-grid').innerHTML = currentImages.map(src => `<div class="preview-item"><img src="${src}"></div>`).join(''); }
 
     async function saveEntry() {
-        const btn = document.getElementById('saveBtn');
-        btn.innerText = "⏳ Snapshot..."; btn.disabled = true;
+        const btn = document.getElementById('saveBtn'); btn.innerText = "⏳ Snapshot..."; btn.disabled = true;
         if (routeLine) map.fitBounds(routeLine.getBounds().pad(0.2));
         await new Promise(r => setTimeout(r, 1000));
         const canvas = await html2canvas(document.getElementById('map'), { useCORS: true });
         const entry = {
-            date: document.getElementById('tDate').value,
-            name: document.getElementById('routeName').value || "Etappe",
-            text: document.getElementById('diary').value,
-            mode: document.getElementById('travelMode').value,
-            distKM: currentDistKM, distNM: currentDistNM,
-            images: [...currentImages],
-            mapImg: canvas.toDataURL("image/jpeg", 0.6)
+            date: document.getElementById('tDate').value, name: document.getElementById('routeName').value || "Etappe",
+            text: document.getElementById('diary').value, mode: document.getElementById('travelMode').value,
+            distKM: currentDistKM, distNM: currentDistNM, images: [...currentImages], mapImg: canvas.toDataURL("image/jpeg", 0.6)
         };
-        const tx = db.transaction("entries", "readwrite");
-        tx.objectStore("entries").add(entry);
+        const tx = db.transaction("entries", "readwrite"); tx.objectStore("entries").add(entry);
         tx.oncomplete = () => { renderHistoryList(); btn.innerText = "📌 Gespeichert"; btn.disabled = false; };
     }
 
@@ -261,10 +240,9 @@
         list.innerHTML = '<strong>Chronik:</strong>';
         const tx = db.transaction("entries", "readonly");
         tx.objectStore("entries").getAll().onsuccess = e => {
-            e.target.result.forEach(entry => {
+            e.target.result.forEach(en => {
                 const d = document.createElement('div'); d.className = 'chronik-item';
-                d.innerHTML = `<b>${entry.name}</b> (${entry.date})`;
-                list.appendChild(d);
+                d.innerHTML = `<b>${en.name}</b> (${en.date})`; list.appendChild(d);
             });
         };
     }
@@ -276,12 +254,9 @@
     function handleExport() { 
         const tx = db.transaction("entries", "readonly");
         tx.objectStore("entries").getAll().onsuccess = e => {
-            let html = `<h1>${document.getElementById('tripTitle').value}</h1>`;
-            e.target.result.forEach(en => {
-                html += `<div style="page-break-after:always"><h2>${en.name}</h2><img src="${en.mapImg}" style="width:100%"><p>${en.text}</p></div>`;
-            });
-            document.getElementById('print-area').innerHTML = html;
-            window.print();
+            let h = `<h1>${document.getElementById('tripTitle').value}</h1>`;
+            e.target.result.forEach(en => { h += `<div style="page-break-after:always"><h2>${en.name}</h2><img src="${en.mapImg}" style="width:100%"><p>${en.text}</p></div>`; });
+            document.getElementById('print-area').innerHTML = h; window.print();
         };
     }
 </script>
