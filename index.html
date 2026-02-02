@@ -3,262 +3,198 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Navigator | Hybrid QR Edition</title>
+    <title>Navigator | Final Route Fix</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root { --paper: #fdfaf0; --ink: #2c3e50; --accent: #2980b9; --green: #27ae60; --red: #e74c3c; --orange: #e67e22; --gray: #95a5a6; }
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: #222; overflow: hidden; }
-
-        /* --- OVERLAYS --- */
-        #lock-screen, #mode-selection, #qr-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(44, 62, 80, 0.95); z-index: 10000; display: flex; align-items: center; justify-content: center; color: white;
-        }
-        #mode-selection, #qr-overlay { display: none; }
-        
-        .box { background: #34495e; padding: 30px; border-radius: 15px; text-align: center; width: 85%; max-width: 400px; box-shadow: 0 10px 50px rgba(0,0,0,0.5); }
-        .box input { width: 100%; padding: 12px; font-size: 16px; text-align: center; border-radius: 8px; border: none; margin: 15px 0; box-sizing: border-box;}
-        
-        .mode-btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-        .mode-btn { background: var(--accent); padding: 20px; border-radius: 10px; cursor: pointer; transition: 0.3s; }
-        
-        #qr-code-container { background: white; padding: 15px; border-radius: 10px; display: inline-block; margin: 15px 0; }
-        #qr-code-container img { display: block; width: 200px; height: 200px; }
-
-        /* --- LAYOUT --- */
-        #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1; background: #333; }
-        #sidebar { 
-            position: absolute; background: white; padding: 15px; border-radius: 12px; 
-            z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,0.4); 
-            display: flex; flex-direction: column; transition: all 0.4s ease;
-        }
-
-        body.mode-desktop #sidebar { top: 20px; left: 20px; bottom: 20px; width: 360px; }
-        body.mode-mobile #sidebar { top: auto; left: 10px; right: 10px; bottom: 10px; height: 50%; width: auto; border-radius: 15px 15px 12px 12px; }
-        body.mode-mobile .history-section { display: none; }
-
-        .input-section { flex-grow: 1; overflow-y: auto; }
-        input, textarea, button, select { width: 100%; padding: 10px; margin-top: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; box-sizing: border-box; }
+        :root { --ink: #2c3e50; --accent: #2980b9; --green: #27ae60; --red: #e74c3c; --orange: #e67e22; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background: #222; overflow: hidden; }
+        #lock-screen, #mode-selection { position: fixed; inset: 0; background: var(--ink); z-index: 10000; display: flex; align-items: center; justify-content: center; color: white; }
+        #mode-selection { display: none; }
+        .box { background: #34495e; padding: 25px; border-radius: 12px; text-align: center; width: 80%; max-width: 350px; }
+        #map { position: absolute; inset: 0; z-index: 1; }
+        #sidebar { position: absolute; top: 10px; left: 10px; bottom: 10px; width: 320px; background: white; padding: 15px; border-radius: 10px; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow-y: auto; }
+        input, textarea, button, select { width: 100%; padding: 10px; margin-top: 8px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: var(--accent); color: white; border: none; font-weight: bold; cursor: pointer; }
-        .btn-save { background: var(--green); height: 45px; }
+        .project-tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+        .chronik-item { background: #eee; padding: 10px; margin-top: 8px; border-radius: 5px; border-left: 4px solid var(--accent); cursor: pointer; font-size: 13px; }
+        .dist-badge { background: var(--ink); color: white; padding: 8px; border-radius: 4px; font-size: 12px; text-align: center; margin-top: 10px; }
         
-        /* Projekt-Grid Layout */
-        .project-tools { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 5px; }
-        .btn-tool { font-size: 10px; padding: 8px 2px; }
-
-        .dist-badge { background: var(--ink); color: white; padding: 6px; border-radius: 4px; font-size: 12px; font-weight: bold; text-align: center; }
-        .preview-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 8px; }
-        .preview-item { position: relative; aspect-ratio: 1; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; }
-        .preview-item img { width: 100%; height: 100%; object-fit: cover; }
-        .chronik-item { background: #f4f4f4; padding: 10px; margin-top: 8px; border-radius: 5px; border-left: 4px solid var(--accent); font-size: 12px; }
-
-        @media print { #sidebar, #lock-screen, #mode-selection, #qr-overlay { display: none !important; } }
+        @media (max-width: 600px) {
+            #sidebar { width: auto; inset: auto 10px 10px 10px; height: 45%; }
+        }
     </style>
 </head>
 <body>
 
 <div id="lock-screen">
     <div class="box">
-        <h2>🔒 Logbuch-Key</h2>
-        <input type="password" id="appKeyInput" placeholder="Sicherheitscode" inputmode="numeric">
-        <button onclick="unlockApp()" style="background:var(--green)">Bestätigen</button>
+        <h2>🔒 Key</h2>
+        <input type="password" id="appKeyInput" placeholder="Code (1234)" inputmode="numeric">
+        <button onclick="unlockApp()" style="background:var(--green)">Login</button>
     </div>
 </div>
 
 <div id="mode-selection">
     <div class="box">
-        <h2>📱 Modus wählen</h2>
-        <div class="mode-btn-grid">
-            <div class="mode-btn" onclick="setMode('desktop')">💻<br>Desktop</div>
-            <div class="mode-btn" onclick="setMode('mobile')">📱<br>Mobil</div>
-        </div>
-    </div>
-</div>
-
-<div id="qr-overlay" onclick="this.style.display='none'">
-    <div class="box" onclick="event.stopPropagation()">
-        <h2>🔗 App teilen</h2>
-        <p style="font-size: 12px;">Scanne diesen Code mit dem Handy:</p>
-        <div id="qr-code-container"></div>
-        <input type="text" id="share-url-text" readonly onclick="this.select()">
-        <button onclick="document.getElementById('qr-overlay').style.display='none'">Schließen</button>
+        <h2>📱 Modus</h2>
+        <button onclick="setMode('desktop')">Laptop/PC</button>
+        <button onclick="setMode('mobile')" style="margin-top:10px">Smartphone</button>
     </div>
 </div>
 
 <div id="sidebar">
-    <div class="input-section">
-        <div class="project-tools">
-            <button onclick="newProject()" class="btn-tool" style="background:var(--red)">✨ Neu</button>
-            <button onclick="exportProject()" class="btn-tool" style="background:var(--orange)">💾 Exp</button>
-            <button onclick="document.getElementById('importFile').click()" class="btn-tool" style="background:var(--ink)">📂 Imp</button>
-            <button onclick="showQR()" class="btn-tool" style="background:var(--accent)">📱 QR</button>
-            <input type="file" id="importFile" style="display:none" accept=".json" onchange="importProject(this)">
-        </div>
-        
-        <input type="text" id="tripTitle" placeholder="Reise-Name">
-        <select id="travelMode" onchange="updateRoute(false)">
-            <option value="pkw">🚗 PKW Route</option>
-            <option value="schiff" selected>⛵ Schiff nm</option>
-            <option value="flugzeug">✈️ Flugzeug</option>
-        </select>
-        <div id="distDisplay" class="dist-badge">Wegpunkte setzen...</div>
-        <input type="date" id="tDate">
-        <input type="text" id="routeName" placeholder="Etappe">
-        <textarea id="diary" style="height: 50px;" placeholder="Notizen..."></textarea>
-        
-        <button onclick="document.getElementById('imgIn').click()" style="background:#7f8c8d; margin-top:10px;">📷 Bilder wählen</button>
-        <input type="file" id="imgIn" style="display:none" multiple accept="image/*" onchange="processImages(this.files)">
-        
-        <div id="preview-grid" class="preview-grid"></div>
-        
-        <button id="saveBtn" class="btn-save" onclick="saveEntry()" disabled style="margin-top:15px">📌 Etappe speichern</button>
-        <button onclick="prepareNext()" style="background:#34495e; margin-top:8px;">⏭️ Nächste Etappe</button>
-        <button onclick="handleExport()" style="background:#2c3e50; margin-top:8px;">📖 PDF Export</button>
-        
-        <div class="history-section" id="chronik-list"></div>
+    <div class="project-tools">
+        <button onclick="newProject()" style="background:var(--red)">✨ Neu</button>
+        <button onclick="exportProject()" style="background:var(--orange)">💾 Exp</button>
+        <button onclick="document.getElementById('importFile').click()" style="background:var(--ink)">📂 Imp</button>
+        <input type="file" id="importFile" style="display:none" accept=".json" onchange="importProject(this)">
     </div>
-    <div style="font-size: 9px; text-align: center; color: #95a5a6; margin-top: 5px;">v2026.23 | &copy; Navigator Pro</div>
+    <input type="text" id="tripTitle" placeholder="Reisetitel">
+    <div id="distDisplay" class="dist-badge">0.00 km</div>
+    <input type="date" id="tDate">
+    <input type="text" id="routeName" placeholder="Etappenname">
+    <textarea id="diary" placeholder="Notizen..."></textarea>
+    <button onclick="saveEntry()" style="background:var(--green); margin-top:10px">📌 Etappe speichern</button>
+    <div id="chronik-list" style="margin-top:15px"></div>
 </div>
 
 <div id="map"></div>
-<div id="print-area"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
 <script>
-    const APP_KEY = "1234";
-    let map, markers = [], routeLine, currentImages = [], db, currentDistKM = 0, currentDistNM = 0;
+    const KEY = "1234";
+    let map, markers = [], routeLine, db;
 
     function unlockApp() {
-        if(document.getElementById('appKeyInput').value === APP_KEY) {
+        if(document.getElementById('appKeyInput').value === KEY) {
             document.getElementById('lock-screen').style.display = 'none';
             document.getElementById('mode-selection').style.display = 'flex';
-        } else { alert("Falscher Key!"); }
+        } else { alert("Falsch!"); }
     }
 
-    function setMode(mode) {
-        document.body.className = 'mode-' + mode;
+    function setMode(m) {
         document.getElementById('mode-selection').style.display = 'none';
         initMap();
     }
 
-    function showQR() {
-        const url = window.location.href;
-        document.getElementById('share-url-text').value = url;
-        const qrContainer = document.getElementById('qr-code-container');
-        qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}" alt="QR Code">`;
-        document.getElementById('qr-overlay').style.display = 'flex';
-    }
-
     function initMap() {
-        map = L.map('map', { zoomControl: true }).setView([50.11, 8.68], 6);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { crossOrigin: 'anonymous' }).addTo(map);
-        map.on('contextmenu', e => addMarker(e.latlng)); 
+        map = L.map('map').setView([50, 10], 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        
+        map.on('contextmenu', e => addMarker(e.latlng));
+        
         let pressTimer;
-        map.on('mousedown touchstart', e => { pressTimer = window.setTimeout(() => { if(e.latlng) addMarker(e.latlng); }, 800); });
-        map.on('mouseup touchend mousemove touchmove', () => clearTimeout(pressTimer));
-        document.getElementById('tDate').valueAsDate = new Date();
+        map.on('mousedown touchstart', e => { pressTimer = window.setTimeout(() => { if(e.latlng) addMarker(e.latlng); }, 600); });
+        map.on('mouseup touchend', () => clearTimeout(pressTimer));
+        
+        initDB();
     }
 
-    const request = indexedDB.open("TravelLogDB_v11", 1);
-    request.onsuccess = e => { db = e.target.result; renderHistoryList(); };
-    request.onupgradeneeded = e => {
-        db = e.target.result;
-        db.createObjectStore("entries", { keyPath: "id", autoIncrement: true });
-    };
+    function initDB() {
+        const req = indexedDB.open("NavFix_v26", 1);
+        req.onupgradeneeded = e => { e.target.result.createObjectStore("etappen", { keyPath: "id", autoIncrement: true }); };
+        req.onsuccess = e => { db = e.target.result; renderList(); };
+    }
 
     function addMarker(latlng) {
         const m = L.marker(latlng, { draggable: true }).addTo(map);
-        m.on('dragend', () => updateRoute(false));
-        m.on('click contextmenu', e => { if(e.type === 'contextmenu' || e.originalEvent.ctrlKey) { map.removeLayer(m); markers = markers.filter(x => x !== m); updateRoute(false); } });
-        markers.push(m); updateRoute(false);
+        m.on('dragend', updateRoute);
+        markers.push(m);
+        updateRoute();
     }
 
-    async function updateRoute(autoZoom = false) {
+    function updateRoute() {
         if (routeLine) map.removeLayer(routeLine);
-        if (markers.length < 2) { document.getElementById('saveBtn').disabled = true; return; }
         const coords = markers.map(m => m.getLatLng());
-        const mode = document.getElementById('travelMode').value;
-        if (mode === "pkw") {
-            const query = coords.map(c => `${c.lng},${c.lat}`).join(';');
-            try {
-                const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${query}?geometries=geojson`);
-                const data = await res.json();
-                routeLine = L.polyline(data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]), { color: '#e67e22', weight: 5 }).addTo(map);
-                currentDistKM = (data.routes[0].distance / 1000).toFixed(2);
-                document.getElementById('distDisplay').innerText = `${currentDistKM} km`;
-            } catch (err) { drawDirect(coords, mode); }
-        } else { drawDirect(coords, mode); }
-        document.getElementById('saveBtn').disabled = false;
-        if (autoZoom && routeLine) map.fitBounds(routeLine.getBounds().pad(0.2));
+        if (coords.length >= 2) {
+            routeLine = L.polyline(coords, { color: '#2980b9', weight: 5 }).addTo(map);
+            let d = 0;
+            for(let i=0; i<coords.length-1; i++) d += coords[i].distanceTo(coords[i+1]);
+            document.getElementById('distDisplay').innerText = (d/1000).toFixed(2) + " km";
+        }
     }
 
-    function drawDirect(coords, mode) {
-        let mtrs = 0; for (let i=0; i<coords.length-1; i++) mtrs += L.latLng(coords[i]).distanceTo(L.latLng(coords[i+1]));
-        currentDistKM = (mtrs/1000).toFixed(2); currentDistNM = (mtrs/1852).toFixed(2);
-        const plane = mode === "flugzeug";
-        routeLine = L.polyline(coords, { color: plane ? '#9b59b6' : '#2980b9', weight: 4, dashArray: plane ? "10,15" : "" }).addTo(map);
-        document.getElementById('distDisplay').innerText = mode === "schiff" ? `${currentDistNM} nm` : `${currentDistKM} km`;
-    }
-
-    function processImages(files) {
-        Array.from(files).forEach(file => {
-            const r = new FileReader();
-            r.onload = e => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const max = 800; let w = img.width, h = img.height;
-                    if (w > h && w > max) { h *= max/w; w = max; } else if (h > max) { w *= max/h; h = max; }
-                    canvas.width = w; canvas.height = h;
-                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                    currentImages.push(canvas.toDataURL('image/jpeg', 0.6)); renderPreviews();
-                }; img.src = e.target.result;
-            }; r.readAsDataURL(file);
-        });
-    }
-
-    function renderPreviews() { document.getElementById('preview-grid').innerHTML = currentImages.map(src => `<div class="preview-item"><img src="${src}"></div>`).join(''); }
-
-    async function saveEntry() {
-        const btn = document.getElementById('saveBtn'); btn.innerText = "⏳ Snapshot..."; btn.disabled = true;
-        if (routeLine) map.fitBounds(routeLine.getBounds().pad(0.2));
-        await new Promise(r => setTimeout(r, 1000));
-        const canvas = await html2canvas(document.getElementById('map'), { useCORS: true });
+    function saveEntry() {
+        if(markers.length === 0) return alert("Punkte setzen!");
         const entry = {
-            date: document.getElementById('tDate').value, name: document.getElementById('routeName').value || "Etappe",
-            text: document.getElementById('diary').value, mode: document.getElementById('travelMode').value,
-            distKM: currentDistKM, distNM: currentDistNM, images: [...currentImages], mapImg: canvas.toDataURL("image/jpeg", 0.6)
+            name: document.getElementById('routeName').value || "Etappe",
+            date: document.getElementById('tDate').value,
+            text: document.getElementById('diary').value,
+            points: markers.map(m => [m.getLatLng().lat, m.getLatLng().lng]) // Speichert Längen- und Breitengrad
         };
-        const tx = db.transaction("entries", "readwrite"); tx.objectStore("entries").add(entry);
-        tx.oncomplete = () => { renderHistoryList(); btn.innerText = "📌 Gespeichert"; btn.disabled = false; };
+        const tx = db.transaction("etappen", "readwrite");
+        tx.objectStore("etappen").add(entry);
+        tx.oncomplete = () => { resetUI(); renderList(); };
     }
 
-    function renderHistoryList() {
-        const list = document.getElementById('chronik-list'); if(!list) return;
-        list.innerHTML = '<strong>Chronik:</strong>';
-        const tx = db.transaction("entries", "readonly");
-        tx.objectStore("entries").getAll().onsuccess = e => {
+    function resetUI() {
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        if(routeLine) map.removeLayer(routeLine);
+        document.getElementById('routeName').value = "";
+        document.getElementById('diary').value = "";
+    }
+
+    function renderList() {
+        const list = document.getElementById('chronik-list');
+        list.innerHTML = "<b>Verlauf:</b>";
+        db.transaction("etappen", "readonly").objectStore("etappen").getAll().onsuccess = e => {
             e.target.result.forEach(en => {
-                const d = document.createElement('div'); d.className = 'chronik-item';
-                d.innerHTML = `<b>${en.name}</b> (${en.date})`; list.appendChild(d);
+                const item = document.createElement('div');
+                item.className = 'chronik-item';
+                item.innerHTML = `<strong>${en.name}</strong><br><small>${en.date}</small>`;
+                item.onclick = () => loadEtappe(en);
+                list.appendChild(item);
             });
         };
     }
 
-    function newProject() { if(confirm("Alles löschen?")) { const tx = db.transaction("entries", "readwrite"); tx.objectStore("entries").clear(); tx.oncomplete = () => location.reload(); }}
-    function exportProject() { const tx = db.transaction("entries", "readonly"); tx.objectStore("entries").getAll().onsuccess = e => { const data = { title: document.getElementById('tripTitle').value, entries: e.target.result }; const blob = new Blob([JSON.stringify(data)], { type: "application/json" }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "Reise.json"; a.click(); }; }
-    function importProject(input) { const r = new FileReader(); r.onload = e => { const data = JSON.parse(e.target.result); const tx = db.transaction("entries", "readwrite"); const store = tx.objectStore("entries"); data.entries.forEach(en => { delete en.id; store.add(en); }); tx.oncomplete = () => location.reload(); }; r.readAsText(input.files[0]); }
-    function prepareNext() { markers.forEach(m => map.removeLayer(m)); markers = []; if(routeLine) map.removeLayer(routeLine); currentImages = []; renderPreviews(); document.getElementById('saveBtn').disabled = true; }
-    function handleExport() { 
-        const tx = db.transaction("entries", "readonly");
-        tx.objectStore("entries").getAll().onsuccess = e => {
-            let h = `<h1>${document.getElementById('tripTitle').value}</h1>`;
-            e.target.result.forEach(en => { h += `<div style="page-break-after:always"><h2>${en.name}</h2><img src="${en.mapImg}" style="width:100%"><p>${en.text}</p></div>`; });
-            document.getElementById('print-area').innerHTML = h; window.print();
+    function loadEtappe(en) {
+        resetUI();
+        if(!en.points || en.points.length === 0) return;
+        
+        // Marker wiederherstellen
+        en.points.forEach(p => {
+            const m = L.marker(p, { draggable: true }).addTo(map);
+            m.on('dragend', updateRoute);
+            markers.push(m);
+        });
+        
+        updateRoute(); // Zeichnet die Linie
+        
+        // Karte auf Route zentrieren
+        if(routeLine) map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
+        
+        // Texte füllen
+        document.getElementById('routeName').value = en.name;
+        document.getElementById('diary').value = en.text;
+        document.getElementById('tDate').value = en.date;
+    }
+
+    function exportProject() {
+        db.transaction("etappen", "readonly").objectStore("etappen").getAll().onsuccess = e => {
+            const blob = new Blob([JSON.stringify({entries: e.target.result})], { type: "application/json" });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = "Reisebericht.json";
+            a.click();
         };
     }
+
+    function importProject(input) {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const data = JSON.parse(e.target.result);
+            const tx = db.transaction("etappen", "readwrite");
+            const store = tx.objectStore("etappen");
+            store.clear(); // Löscht alte Daten beim Import
+            data.entries.forEach(en => { delete en.id; store.add(en); });
+            tx.oncomplete = () => { renderList(); alert("Geladen! Klicke eine Etappe im Verlauf an."); };
+        };
+        reader.readAsText(input.files[0]);
+    }
+
+    function newProject() { if(confirm("App zurücksetzen?")) { db.transaction("etappen", "readwrite").objectStore("etappen").clear().oncomplete = () => location.reload(); }}
 </script>
 </body>
 </html>
